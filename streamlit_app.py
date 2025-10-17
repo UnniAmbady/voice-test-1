@@ -1,4 +1,4 @@
-# streamlit-app.py
+# streamlit_app.py
 # Title: Voice test
 """
 A simple Streamlit app that captures microphone audio, converts speech to text,
@@ -15,10 +15,10 @@ Optional (for offline/CPU-light STT):
     pip install vosk
     # Download a small English-accent model (e.g., en-in) from Vosk and set its path in the sidebar.
 
-Run:
-    streamlit run streamlit-app.py
+Run locally:
+    streamlit run streamlit_app.py
 """
-import streamlit as st
+
 import io
 import os
 import tempfile
@@ -50,8 +50,8 @@ except Exception:
     _HAS_VOSK = False
 
 st.set_page_config(page_title="Voice test", page_icon="🎙️")
-st.title("🎈 Voice -Test-1")
-st.caption("Microphone → Speech‑to‑Text → Editable text. Submit is a dummy.")
+st.title("Voice test")
+st.caption("Microphone -> Speech-to-Text -> Editable text. Submit is a dummy.")
 
 # --- Sidebar settings
 st.sidebar.header("Settings")
@@ -91,10 +91,10 @@ if "transcribed_text" not in st.session_state:
     st.session_state.transcribed_text = ""
 
 # --- Microphone recorder
-st.subheader("🎤 Record your voice")
+st.subheader("Record your voice")
 if mic_recorder is None:
     st.warning(
-        "streamlit-mic-recorder is not installed. Run: `pip install streamlit-mic-recorder`."
+        "streamlit-mic-recorder is not installed. Run: pip install streamlit-mic-recorder"
     )
 else:
     st.write("Click to start/stop. After stopping, transcription will run.")
@@ -123,7 +123,7 @@ else:
                     if engine.startswith("Faster-Whisper"):
                         if WhisperModel is None:
                             st.error(
-                                "faster-whisper not installed. Run: `pip install faster-whisper`."
+                                "faster-whisper not installed. Run: pip install faster-whisper"
                             )
                         else:
                             # Save to a temp wav and run transcription
@@ -148,9 +148,9 @@ else:
                             except Exception:
                                 pass
 
-                    else:  # Vosk path with proper WAV → PCM handling
+                    else:  # Vosk path with proper WAV -> PCM handling
                         if not _HAS_VOSK:
-                            st.error("vosk not installed. Run: `pip install vosk`.")
+                            st.error("vosk not installed. Run: pip install vosk")
                         elif not vosk_model_path or not os.path.isdir(vosk_model_path):
                             st.error("Please set a valid Vosk model directory in the sidebar.")
                         else:
@@ -197,7 +197,7 @@ else:
                     st.exception(e)
 
 # --- Text editor & Submit
-st.subheader("📝 Edit transcript")
+st.subheader("Edit transcript")
 st.session_state.transcribed_text = st.text_area(
     "Transcript",
     value=st.session_state.transcribed_text,
