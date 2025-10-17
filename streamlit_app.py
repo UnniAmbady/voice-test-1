@@ -123,9 +123,7 @@ else:
                     if text:
                         # Append to existing text with a separator (editor was cleared when Start new recording was pressed)
                         if st.session_state.transcribed_text:
-                            st.session_state.transcribed_text += "
-
-" + text
+                            st.session_state.transcribed_text += "\n\n" + text
                         else:
                             st.session_state.transcribed_text = text
                         st.success("Transcription added to editor below.")
