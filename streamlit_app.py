@@ -183,18 +183,15 @@ else:
                             text = (res.get("text") or "").strip()
 
                     if text:
-                        # Append to existing text with a separator
                         if st.session_state.transcribed_text:
-                            st.session_state.transcribed_text += "
-
-" + text
+                            st.session_state.transcribed_text += "\n\n" + text
                         else:
                             st.session_state.transcribed_text = text
                         st.success("Transcription added to editor below.")
                     else:
                         st.info("No speech detected, or empty result.")
-                except Exception as e:
-                    st.exception(e)
+                                    except Exception as e:
+                                        st.exception(e)
 
 # --- Text editor & Submit
 st.subheader("Edit transcript")
