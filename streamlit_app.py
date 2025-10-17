@@ -1,4 +1,4 @@
-# app.py
+# streamlit-app.py
 # Title: Voice test
 """
 A simple Streamlit app that captures microphone audio, converts speech to text,
@@ -16,7 +16,7 @@ Optional (for offline/CPU-light STT):
     # Download a small English-accent model (e.g., en-in) from Vosk and set its path in the sidebar.
 
 Run:
-    streamlit run app.py
+    streamlit run streamlit-app.py
 """
 import streamlit as st
 import io
