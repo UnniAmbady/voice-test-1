@@ -190,8 +190,8 @@ else:
                         st.success("Transcription added to editor below.")
                     else:
                         st.info("No speech detected, or empty result.")
-                                    except Exception as e:
-                                        st.exception(e)
+                except Exception as e:
+                    st.exception(e)
 
 # --- Text editor & Submit
 st.subheader("Edit transcript")
