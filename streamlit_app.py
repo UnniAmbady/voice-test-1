@@ -75,9 +75,7 @@ def _ensure_log_path() -> str:
 def _log_text(text: str) -> None:
     path = _ensure_log_path()
     ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(f"[{ts}] {text}
-")
+    with open(path, "a", encoding="utf-8") as f: f.write(f"[{ts}] {text}")
 
 # --- Session state ---
 if "transcribed_text" not in st.session_state:
