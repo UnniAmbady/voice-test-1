@@ -1,31 +1,36 @@
 # streamlit_app.py
-# Title: Voice test (Compact mobile + logging)
+# Title: Voice test (Compact mobile + logging + GitHub sync via Streamlit Secret)
 """
 Streamlit app that:
 - Records voice and converts to text (Faster-Whisper base/int8)
 - Shows only the latest transcription in the editor
 - Logs **all** transcriptions to a session-scoped file: `msg/chat-ddmmyy-hhmmss.txt`
-  - `ddmmyy-hhmmss` is created at app session start
-  - Each saved entry is timestamped inside the file
-- Single-column, mobile-friendly layout
-- Submit button is a dummy
+- Pushes the log file to your GitHub repo via the REST API using the SSH deploy key stored in Streamlit Secrets.
+
+Secrets format (`.streamlit/secrets.toml`):
+
+    [github]
+    token = "ssh-deploy-key"
 
 Dependencies (requirements.txt):
     streamlit==1.39.0
     streamlit-mic-recorder==0.0.8
     faster-whisper==1.0.3
     typing-extensions>=4.10.0
+    requests>=2.31.0
 
 Run:
     streamlit run streamlit_app.py
 """
 
+import base64
 import io
 import os
 import tempfile
 from typing import Optional
 from datetime import datetime
 
+import requests
 import streamlit as st
 
 st.set_page_config(page_title="Voice test", page_icon="🎙️", layout="centered")
@@ -56,17 +61,49 @@ try:
 except Exception:
     mic_recorder = None  # type: ignore
 
+# --- GitHub constants ---
+GH_REPO = "UnniAmbady/voice-test-1"
+GH_BRANCH = "main"
+GH_COMMIT_NAME = "Streamlit Sync Bot"
+GH_COMMIT_EMAIL = "streamlit-sync@users.noreply.github.com"
+
+# --- GitHub helpers ---
+@st.cache_resource(show_spinner=False)
+def _gh_cfg():
+    token = st.secrets["github"]["token"]
+    return token, GH_REPO, GH_BRANCH, GH_COMMIT_NAME, GH_COMMIT_EMAIL
+
+
+def _gh_get_sha(token: str, repo: str, branch: str, path: str) -> Optional[str]:
+    url = f"https://api.github.com/repos/{repo}/contents/{path}?ref={branch}"
+    r = requests.get(url, headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}, timeout=15)
+    if r.status_code == 200:
+        return r.json().get("sha")
+    return None
+
+
+def _gh_put_file(token: str, repo: str, branch: str, path: str, content_bytes: bytes, message: str) -> bool:
+    url = f"https://api.github.com/repos/{repo}/contents/{path}"
+    sha = _gh_get_sha(token, repo, branch, path)
+    payload = {
+        "message": message,
+        "branch": branch,
+        "content": base64.b64encode(content_bytes).decode("utf-8"),
+    }
+    if sha:
+        payload["sha"] = sha
+    r = requests.put(url, json=payload, headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}, timeout=20)
+    return r.status_code in (200, 201)
+
+
 # --- Helpers for logging ---
 def _ensure_log_path() -> str:
-    """Create msg/ dir if needed and return session log file path like msg/chat-ddmmyy-hhmmss.txt."""
     if "log_file_path" not in st.session_state:
-        # Create a session-start timestamp and file path once per session
         session_stamp = datetime.now().strftime("%d%m%y-%H%M%S")
         base_dir = os.getcwd()
         msg_dir = os.path.join(base_dir, "msg")
         os.makedirs(msg_dir, exist_ok=True)
         st.session_state.log_file_path = os.path.join(msg_dir, f"chat-{session_stamp}.txt")
-        # Write a header for the session
         with open(st.session_state.log_file_path, "a", encoding="utf-8") as f:
             f.write(f"=== Session start: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n")
     return st.session_state.log_file_path
@@ -75,21 +112,38 @@ def _ensure_log_path() -> str:
 def _log_text(text: str) -> None:
     path = _ensure_log_path()
     ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open(path, "a", encoding="utf-8") as f: f.write(f"[{ts}] {text}\n")
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(f"[{ts}] {text}\n")
+
+
+def _sync_log_to_github() -> bool:
+    token, repo, branch, name, email = _gh_cfg()
+    if not token:
+        return False
+    local_path = _ensure_log_path()
+    try:
+        with open(local_path, "rb") as f:
+            data = f.read()
+    except FileNotFoundError:
+        return False
+    remote_path = os.path.relpath(local_path, start=os.getcwd()).replace("\\", "/")
+    message = f"Update {remote_path} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    ok = _gh_put_file(token, repo, branch, remote_path, data, message)
+    return ok
+
+
 # --- Session state ---
 if "transcribed_text" not in st.session_state:
     st.session_state.transcribed_text = ""
 if "recorder_key" not in st.session_state:
     st.session_state.recorder_key = 0
 
-# Initialize log file on first load
 _ensure_log_path()
 
 # --- Record control ---
 st.subheader("Record your voice")
 
 if st.button("Start new recording", key="btn_start", help="Flush text and record", use_container_width=False):
-    # Flush text and reset recorder key
     st.session_state.transcribed_text = ""
     st.session_state.recorder_key += 1
     st.rerun()
@@ -106,7 +160,6 @@ else:
         key=f"mic_{st.session_state.recorder_key}",
     )
 
-    # Process audio
     if audio:
         wav_bytes: Optional[bytes] = None
         if isinstance(audio, dict) and "bytes" in audio:
@@ -138,11 +191,13 @@ else:
                             pass
 
                     if text:
-                        # Replace editor content with latest transcription
                         st.session_state.transcribed_text = text
-                        # Log to file with timestamp
                         _log_text(text)
-                        st.success("Transcription added to editor and saved to log.")
+                        synced = _sync_log_to_github()
+                        if synced:
+                            st.success("Transcription added, saved to log, and synced to GitHub.")
+                        else:
+                            st.success("Transcription added and saved to local log (GitHub sync not configured).")
                     else:
                         st.info("No speech detected or empty result.")
 
@@ -154,7 +209,7 @@ st.session_state.transcribed_text = st.text_area(
     height=200,
 )
 
-c1, c2 = st.columns([1, 3])
+c1, c2, c3 = st.columns([1, 2, 2])
 with c1:
     if st.button("Submit", type="primary", key="btn_submit"):
         st.success("Submitted (dummy). No action performed.")
@@ -162,5 +217,11 @@ with c2:
     if st.button("Clear", key="btn_clear"):
         st.session_state.transcribed_text = ""
         st.rerun()
+with c3:
+    if st.button("Sync log to GitHub", key="btn_sync"):
+        if _sync_log_to_github():
+            st.success("Log synced to GitHub.")
+        else:
+            st.warning("GitHub sync failed or not configured.")
 
-st.caption("Logs are written to ./msg/chat-<ddmmyy-hhmmss>.txt (session-scoped). Each line prefixed with a timestamp.")
+st.caption("Logs are written to ./msg/chat-<ddmmyy-hhmmss>.txt (session-scoped). Uses Streamlit Secret [github.token] for sync.")
