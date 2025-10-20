@@ -1,11 +1,13 @@
 # streamlit_app.py
-# Title: Voice test (Compact mobile view)
+# Title: Voice test (Compact mobile + logging)
 """
 Streamlit app that:
 - Records voice and converts to text (Faster-Whisper base/int8)
-- Shows only the latest transcription (flushes old text when Start is pressed)
+- Shows only the latest transcription in the editor
+- Logs **all** transcriptions to a session-scoped file: `msg/chat-ddmmyy-hhmmss.txt`
+  - `ddmmyy-hhmmss` is created at app session start
+  - Each saved entry is timestamped inside the file
 - Single-column, mobile-friendly layout
-- Start/Stop buttons auto-sized to label
 - Submit button is a dummy
 
 Dependencies (requirements.txt):
@@ -22,6 +24,7 @@ import io
 import os
 import tempfile
 from typing import Optional
+from datetime import datetime
 
 import streamlit as st
 
@@ -40,7 +43,7 @@ st.markdown(
 )
 
 st.title("Voice test")
-st.caption("Microphone → Speech‑to‑Text → Editable text. Submit is a dummy.")
+st.caption("Microphone → Speech-to-Text → Editable text. Submit is a dummy.")
 
 # --- Import libraries ---
 try:
@@ -53,11 +56,38 @@ try:
 except Exception:
     mic_recorder = None  # type: ignore
 
+# --- Helpers for logging ---
+def _ensure_log_path() -> str:
+    """Create msg/ dir if needed and return session log file path like msg/chat-ddmmyy-hhmmss.txt."""
+    if "log_file_path" not in st.session_state:
+        # Create a session-start timestamp and file path once per session
+        session_stamp = datetime.now().strftime("%d%m%y-%H%M%S")
+        base_dir = os.getcwd()
+        msg_dir = os.path.join(base_dir, "msg")
+        os.makedirs(msg_dir, exist_ok=True)
+        st.session_state.log_file_path = os.path.join(msg_dir, f"chat-{session_stamp}.txt")
+        # Write a header for the session
+        with open(st.session_state.log_file_path, "a", encoding="utf-8") as f:
+            f.write(f"=== Session start: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===
+")
+    return st.session_state.log_file_path
+
+
+def _log_text(text: str) -> None:
+    path = _ensure_log_path()
+    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(f"[{ts}] {text}
+")
+
 # --- Session state ---
 if "transcribed_text" not in st.session_state:
     st.session_state.transcribed_text = ""
 if "recorder_key" not in st.session_state:
     st.session_state.recorder_key = 0
+
+# Initialize log file on first load
+_ensure_log_path()
 
 # --- Record control ---
 st.subheader("Record your voice")
@@ -112,9 +142,11 @@ else:
                             pass
 
                     if text:
-                        # Always replace text (flush old ones)
+                        # Replace editor content with latest transcription
                         st.session_state.transcribed_text = text
-                        st.success("Transcription added to editor below.")
+                        # Log to file with timestamp
+                        _log_text(text)
+                        st.success("Transcription added to editor and saved to log.")
                     else:
                         st.info("No speech detected or empty result.")
 
@@ -135,5 +167,4 @@ with c2:
         st.session_state.transcribed_text = ""
         st.rerun()
 
-st.caption("Fixed STT params: Faster‑Whisper base / int8. Compact single‑panel mobile UI.")
-
+st.caption("Logs are written to ./msg/chat-<ddmmyy-hhmmss>.txt (session-scoped). Each line prefixed with a timestamp.")
