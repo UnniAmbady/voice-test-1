@@ -68,15 +68,14 @@ def _ensure_log_path() -> str:
         st.session_state.log_file_path = os.path.join(msg_dir, f"chat-{session_stamp}.txt")
         # Write a header for the session
         with open(st.session_state.log_file_path, "a", encoding="utf-8") as f:
-            f.write(f"=== Session start: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===")
+            f.write(f"=== Session start: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n")
     return st.session_state.log_file_path
 
 
 def _log_text(text: str) -> None:
     path = _ensure_log_path()
     ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open(path, "a", encoding="utf-8") as f: f.write(f"[{ts}] {text}")
-
+    with open(path, "a", encoding="utf-8") as f: f.write(f"[{ts}] {text}\n")
 # --- Session state ---
 if "transcribed_text" not in st.session_state:
     st.session_state.transcribed_text = ""
