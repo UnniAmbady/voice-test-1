@@ -92,8 +92,18 @@ def _gh_put_file(token: str, repo: str, branch: str, path: str, content_bytes: b
     }
     if sha:
         payload["sha"] = sha
-    r = requests.put(url, json=payload, headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}, timeout=20)
-    return r.status_code in (200, 201)
+
+    headers = {
+        "Authorization": f"Bearer {token}",  # works with PAT too
+        "Accept": "application/vnd.github+json"
+    }
+    r = requests.put(url, json=payload, headers=headers, timeout=20)
+
+    if r.status_code not in (200, 201):
+        st.error(f"GitHub sync failed: {r.status_code} – {r.text}")
+        return False
+    return True
+
 
 
 # --- Helpers for logging ---
